@@ -7,6 +7,7 @@ import { PRODUCT_VARIATIONS } from '../entities/productVariation.entity';
 import { PRODUCT_DESCRIPTION } from '../entities/productDescription.entity';
 import { createProductDTO } from 'src/dto/admin/createProductDTO.dto';
 import { updateProductDTO } from 'src/dto/admin/updateProductDTO.dto';
+import { cartItem, cartVariations } from 'src/dto/product/cartDTO.sto';
 
 @Injectable()
 export class ProductService {
@@ -212,6 +213,28 @@ export class ProductService {
     return this.dataSource.getRepository(PRODUCT_GENERAL).find({
       where: {
         PRODUCT_NAME: ILike(`%${searchKey}%`),
+      },
+    });
+  }
+  async getCartProductInfo(cartVariations: cartItem[]) {
+    let cart = cartVariations.map((v) => v.vid);
+    return this.dataSource.getRepository(PRODUCT_VARIATIONS).find({
+      where: {
+        VARIATION_ID: In(cart),
+      },
+      relations: {
+        product: true,
+      },
+      select: {
+        VARIATION_ID: true,
+        PRICE: true,
+        UNIT: true,
+        AMOUNT: true,
+        product: {
+          PRODUCT_LOGO_IMAGE: true,
+          PRODUCT_NAME: true,
+          PRODUCT_ID: true,
+        },
       },
     });
   }

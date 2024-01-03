@@ -1,12 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, ILike } from 'typeorm';
+import { DataSource, ILike, In } from 'typeorm';
 import { CUSTOMER } from 'src/entities/customer.entity';
 import { ORDER } from 'src/entities/order.entity';
 import { updateCustomerDTO } from 'src/dto/customer/updateCustomer.dto';
 import * as bcrypt from 'bcrypt';
 import { createProductDTO } from 'src/dto/admin/createProductDTO.dto';
 import { addCustomerDTO } from 'src/dto/customer/addCustomer.dto';
+import { ORDER_LIST_PRODUCT } from 'src/entities/orderListProduct';
+import { PRODUCT_VARIATIONS } from 'src/entities/productVariation.entity';
 @Injectable()
 export class CustomerService {
   constructor(
@@ -247,5 +249,51 @@ export class CustomerService {
     });
     let res = await this.dataSource.getRepository(CUSTOMER).save(user);
     return res.IS_DELETED;
+  }
+  async createAnOrder(
+    cart: cartItem[],
+    CUSTOMER_ID: number,
+    ORDER_ADDRESS: string | undefined,
+    PAYMENT_ID: number | undefined,
+  ) {
+    if (cart.length == 0) throw new BadRequestException("cart can't empty");
+    return await this.dataSource.transaction(async (dataSrc) => {
+      cart = cart.sort((a, b) => a.vid - b.vid);
+      let vidArr: number[] = cart.map((item) => item.vid);
+      let variations = await dataSrc
+        .getRepository(PRODUCT_VARIATIONS)
+        .findAndCountBy({
+          VARIATION_ID: In(vidArr),
+        });
+      if (variations[1] != vidArr.length)
+        throw new BadRequestException('an variation is not exist');
+      if (!PAYMENT_ID) PAYMENT_ID = 1;
+      if (ORDER_ADDRESS == undefined)
+        ORDER_ADDRESS =
+          (
+            await dataSrc.getRepository(CUSTOMER).findOne({
+              where: {
+                CUSTOMER_ID: CUSTOMER_ID,
+              },
+            })
+          ).ADDRESS || '';
+      let ORDER_ID = (
+        await dataSrc.getRepository(ORDER).save({
+          CUSTOMER_ID: CUSTOMER_ID,
+          ORDER_ADDRESS: ORDER_ADDRESS,
+          ORDER_DATE: new Date(),
+          ORDER_STATUS: 1,
+          PAYMENT_ID: PAYMENT_ID,
+        })
+      ).ORDER_ID;
+      cart.map((item, i) => {
+        dataSrc.getRepository(ORDER_LIST_PRODUCT).save({
+          PRODUCT_VARIATION_ID: cart[i].vid,
+          AMOUNT: cart[i].amount,
+          ORDER_ID: ORDER_ID,
+          PRICE: cart[i].amount * variations[0][i].PRICE,
+        });
+      });
+    });
   }
 }

@@ -1,11 +1,14 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
+  Post,
   Query,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
+import { cartItem } from 'src/dto/product/cartDTO.sto';
 
 @Controller('product')
 export class ProductController {
@@ -18,6 +21,11 @@ export class ProductController {
   @Get('/categories')
   GetCategories() {
     return this.productServices.getAllCategory();
+  }
+  @Post('/productCartInfo')
+  getCartInfo(@Body() data: cartItem[]) {
+    if (data.length == 0) throw new BadRequestException();
+    return this.productServices.getCartProductInfo(data);
   }
   @Get('/productlist')
   getProductList() {
